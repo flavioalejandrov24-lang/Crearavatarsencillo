@@ -339,7 +339,7 @@
             chatInput.value = '';
             saveData();
 
-            // Usar SOLO Gemma
+            // Usar solo Gemma
             let aiResponse = await getGemmaResponse(userMessage);
             
             // Si falla, mensaje de error
@@ -366,53 +366,22 @@
         }
 
         // ============================================
-        // INTEGRACIÓN CON GEMMA (IA PRINCIPAL)
+        // INTEGRACIÓN CON GEMMA (IA ÚNICA)
         // ============================================
         async function getGemmaResponse(userMessage) {
             try {
-                // Prompt optimizado para TTS: sin emojis, asteriscos ni onomatopeyas
-                const systemContext = `Eres ${currentAvatar.name}. ${currentAvatar.personality}
-
-REGLAS OBLIGATORIAS:
-1. Responde en máximo 2 frases cortas y directas
-2. NO uses emojis ni emoticones
-3. NO uses asteriscos ni símbolos especiales
-4. NO uses onomatopeyas como "jaja", "mmm", "uhm", etc
-5. Escribe solo texto limpio y natural como si hablaras
-6. Sé breve, coherente y lógico
-7. Responde de forma conversacional y natural`;
-
-                const fullMessage = `${systemContext}\n\nUsuario: ${userMessage}\n\nResponde ahora:`;
-                
-                console.log('🤖 Consultando Gemma...');
+                const systemContext = `Eres ${currentAvatar.name}. ${currentAvatar.personality}. Responde de forma breve, coherente y natural. No uses emojis, asteriscos ni onomatopeyas.`;
+                const fullMessage = `${systemContext}\n\nUsuario: ${userMessage}`;
                 
                 const response = await fetch(`${GEMMA_AI_URL}?mensaje=${encodeURIComponent(fullMessage)}`, {
                     method: 'GET',
                     headers: { 'Accept': 'application/json' }
                 });
                 
-                if (!response.ok) {
-                    console.error('❌ Error en Gemma API');
-                    return null;
-                }
+                if (!response.ok) throw new Error('Gemma API error');
                 
                 const data = await response.json();
-                let answer = data.respuesta || null;
-                
-                if (answer) {
-                    // Limpiar cualquier emoji, asterisco o símbolo extraño que se haya colado
-                    answer = answer
-                        .replace(/[*_~`]/g, '')  // Eliminar asteriscos, guiones bajos, etc
-                        .replace(/:\w+:/g, '')   // Eliminar :emoji:
-                        .replace(/[😀-🙏🌀-🗿]/g, '')  // Eliminar emojis Unicode
-                        .replace(/\bjaja\b|\bjeje\b|\bjiji\b/gi, '')  // Eliminar risas
-                        .replace(/\bmmm\b|\buhm\b|\bahh\b/gi, '')  // Eliminar onomatopeyas
-                        .trim();
-                    
-                    console.log('✅ Respuesta de Gemma recibida');
-                }
-                
-                return answer;
+                return data.respuesta || null;
             } catch (error) {
                 console.error('❌ Error con Gemma:', error);
                 return null;
