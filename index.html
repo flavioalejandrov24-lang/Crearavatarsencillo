@@ -169,7 +169,6 @@
         // ============================================
         // CONFIGURACIÓN DE SERVIDORES
         // ============================================
-        const GEMINI_API_KEY = "AIzaSyB5hAqxCbQF89ufj2xR_iTmCFgCw2pm2jY";
         const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
         const GEMMA_AI_URL = "https://alejandrott24-mi-gemma-servidor.hf.space/preguntar";
         
@@ -340,16 +339,10 @@
             chatInput.value = '';
             saveData();
 
-            // Intentar con Gemini primero
-            let aiResponse = await getGeminiResponse(userMessage);
+            // Usar SOLO Gemma
+            let aiResponse = await getGemmaResponse(userMessage);
             
-            // Si Gemini falla, usar Gemma como respaldo
-            if (!aiResponse) {
-                console.log('⚠️ Gemini falló, usando Gemma como respaldo...');
-                aiResponse = await getGemmaResponse(userMessage);
-            }
-            
-            // Si ambos fallan, mensaje de error
+            // Si falla, mensaje de error
             if (!aiResponse) {
                 aiResponse = "Lo siento, tengo problemas de conexión. Intenta de nuevo.";
             }
@@ -373,48 +366,53 @@
         }
 
         // ============================================
-        // INTEGRACIÓN CON GEMINI (IA PRINCIPAL)
-        // ============================================
-        async function getGeminiResponse(userMessage) {
-            try {
-                const systemPrompt = `Eres ${currentAvatar.name}. Carácter: ${currentAvatar.personality}. IMPORTANTE: Responde siempre con lógica, coherencia y sentido común. Sé muy breve (máximo 2 frases).`;
-              
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: userMessage }] }],
-                        systemInstruction: { parts: [{ text: systemPrompt }] }
-                    })
-                });
-                
-                if (!response.ok) throw new Error('Gemini API error');
-                
-                const data = await response.json();
-                return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-            } catch (error) {
-                console.error('❌ Error con Gemini:', error);
-                return null;
-            }
-        }
-
-        // ============================================
-        // INTEGRACIÓN CON GEMMA (IA DE RESPALDO)
+        // INTEGRACIÓN CON GEMMA (IA PRINCIPAL)
         // ============================================
         async function getGemmaResponse(userMessage) {
             try {
-                const systemContext = `Eres ${currentAvatar.name}. ${currentAvatar.personality} Responde en máximo 2 frases.`;
-                const fullMessage = `${systemContext}\n\nUsuario: ${userMessage}`;
+                // Prompt optimizado para TTS: sin emojis, asteriscos ni onomatopeyas
+                const systemContext = `Eres ${currentAvatar.name}. ${currentAvatar.personality}
+
+REGLAS OBLIGATORIAS:
+1. Responde en máximo 2 frases cortas y directas
+2. NO uses emojis ni emoticones
+3. NO uses asteriscos ni símbolos especiales
+4. NO uses onomatopeyas como "jaja", "mmm", "uhm", etc
+5. Escribe solo texto limpio y natural como si hablaras
+6. Sé breve, coherente y lógico
+7. Responde de forma conversacional y natural`;
+
+                const fullMessage = `${systemContext}\n\nUsuario: ${userMessage}\n\nResponde ahora:`;
+                
+                console.log('🤖 Consultando Gemma...');
                 
                 const response = await fetch(`${GEMMA_AI_URL}?mensaje=${encodeURIComponent(fullMessage)}`, {
                     method: 'GET',
                     headers: { 'Accept': 'application/json' }
                 });
                 
-                if (!response.ok) throw new Error('Gemma API error');
+                if (!response.ok) {
+                    console.error('❌ Error en Gemma API');
+                    return null;
+                }
                 
                 const data = await response.json();
-                return data.respuesta || null;
+                let answer = data.respuesta || null;
+                
+                if (answer) {
+                    // Limpiar cualquier emoji, asterisco o símbolo extraño que se haya colado
+                    answer = answer
+                        .replace(/[*_~`]/g, '')  // Eliminar asteriscos, guiones bajos, etc
+                        .replace(/:\w+:/g, '')   // Eliminar :emoji:
+                        .replace(/[😀-🙏🌀-🗿]/g, '')  // Eliminar emojis Unicode
+                        .replace(/\bjaja\b|\bjeje\b|\bjiji\b/gi, '')  // Eliminar risas
+                        .replace(/\bmmm\b|\buhm\b|\bahh\b/gi, '')  // Eliminar onomatopeyas
+                        .trim();
+                    
+                    console.log('✅ Respuesta de Gemma recibida');
+                }
+                
+                return answer;
             } catch (error) {
                 console.error('❌ Error con Gemma:', error);
                 return null;
