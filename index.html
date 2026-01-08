@@ -37,6 +37,10 @@
         .btn-clear:hover { background: rgba(239, 68, 68, 0.3); }
         .btn-save { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
         .btn-save:hover { background: rgba(34, 197, 94, 0.3); }
+        .btn-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+        .btn-blue:hover { background: rgba(59, 130, 246, 0.3); }
+        .btn-yellow { background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); }
+        .btn-yellow:hover { background: rgba(234, 179, 8, 0.3); }
 
         .custom-slider { -webkit-appearance: none; height: 6px; background: #1e3a8a; border-radius: 5px; }
         .custom-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #3b82f6; cursor: pointer; border-radius: 50%; }
@@ -87,13 +91,12 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Voz de Gemini</label>
+                    <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Voz Piper TTS</label>
                     <select id="voice-select" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white blue-glow">
-                        <option value="Zephyr">Zephyr (Cálida)</option>
-                        <option value="Charon">Charon (Profunda)</option>
-                        <option value="Fenrir">Fenrir (Fuerte)</option>
-                        <option value="Orus">Orus (Seria)</option>
-                        <option value="Enceladus">Enceladus (Juvenil)</option>
+                        <option value="es_MX-claude-high.onnx">Claude MX (Alta Calidad)</option>
+                        <option value="es_ES-carlfm-x_low.onnx">CarlfM ES (Rápida)</option>
+                        <option value="es_ES-davefx-medium.onnx">DaveFX ES (Media)</option>
+                        <option value="es_AR-daniela-high.onnx">Daniela AR (Alta)</option>
                     </select>
                 </div>
 
@@ -101,16 +104,18 @@
                     <div>
                         <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Velocidad</label>
                         <input type="range" id="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" class="w-full custom-slider">
+                        <span id="speed-value" class="text-xs text-blue-400">1.0x</span>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Tono</label>
-                        <input type="range" id="pitch-slider" min="-10" max="10" step="1" value="0" class="w-full custom-slider">
+                        <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Expresividad</label>
+                        <input type="range" id="noise-slider" min="0.1" max="1.0" step="0.1" value="0.667" class="w-full custom-slider">
+                        <span id="noise-value" class="text-xs text-blue-400">0.667</span>
                     </div>
                 </div>
 
                 <div class="space-y-3 pt-4">
                     <button type="button" id="test-audio-btn" class="w-full p-3 rounded-xl font-semibold btn-test transition">
-                        Prueba de Audio
+                        🎤 Prueba de Voz
                     </button>
                     <div class="grid grid-cols-2 gap-3">
                         <button type="button" id="clear-btn" class="p-3 rounded-xl font-semibold btn-clear transition">Limpiar</button>
@@ -129,11 +134,20 @@
         <div id="chat-screen" class="glass-card flex-col h-full overflow-hidden flex">
             <!-- Header -->
             <div class="p-4 border-b border-blue-900 flex items-center justify-between bg-black/60 z-10">
-                <button onclick="createNewAvatar()" class="text-blue-400 hover:text-white transition">Nuevo</button>
-                <div class="text-center flex flex-col items-center">
-                    <img id="chat-avatar-img" src="" class="w-16 h-16 rounded-2xl border-2 border-white object-cover shadow-lg">
+                <!-- Avatar a la izquierda -->
+                <div class="flex items-center">
+                    <img id="chat-avatar-img" src="" class="w-12 h-12 rounded-2xl border-2 border-white object-cover shadow-lg">
                 </div>
-                <button onclick="editAvatar()" class="text-blue-400 hover:text-white transition">Editar</button>
+                
+                <!-- Botones a la derecha -->
+                <div class="flex gap-2">
+                    <button onclick="createNewAvatar()" class="btn-blue px-4 py-2 rounded-lg font-semibold transition text-sm">
+                        Nuevo
+                    </button>
+                    <button onclick="editAvatar()" class="btn-yellow px-4 py-2 rounded-lg font-semibold transition text-sm">
+                        Editar
+                    </button>
+                </div>
             </div>
 
             <!-- Chat -->
@@ -152,7 +166,13 @@
     </div>
 
     <script>
-        const apiKey = "AIzaSyB5hAqxCbQF89ufj2xR_iTmCFgCw2pm2jY";
+        // ============================================
+        // CONFIGURACIÓN DE SERVIDORES
+        // ============================================
+        const GEMINI_API_KEY = "AIzaSyB5hAqxCbQF89ufj2xR_iTmCFgCw2pm2jY";
+        const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
+        const GEMMA_AI_URL = "https://alejandrott24-mi-gemma-servidor.hf.space/preguntar";
+        
         const STORAGE_KEY = "avatar_companion_data";
         let currentAvatar = null;
         let chatHistory = [];
@@ -165,7 +185,17 @@
         const photoInput = document.getElementById('photo-input');
         const imagePreview = document.getElementById('image-preview');
 
-        // Inicializar aplicación
+        // Actualizar valores de sliders en tiempo real
+        document.getElementById('speed-slider').oninput = (e) => {
+            document.getElementById('speed-value').textContent = e.target.value + 'x';
+        };
+        document.getElementById('noise-slider').oninput = (e) => {
+            document.getElementById('noise-value').textContent = e.target.value;
+        };
+
+        // ============================================
+        // INICIALIZACIÓN
+        // ============================================
         window.onload = () => {
             loadData();
             if (currentAvatar) {
@@ -175,7 +205,6 @@
             }
         };
 
-        // Cargar datos desde localStorage
         function loadData() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
@@ -185,7 +214,6 @@
             }
         }
 
-        // Guardar datos en localStorage
         function saveData() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 avatar: currentAvatar,
@@ -193,13 +221,14 @@
             }));
         }
 
-        // Mostrar formulario
+        // ============================================
+        // NAVEGACIÓN DE PANTALLAS
+        // ============================================
         function showForm() {
             chatScreen.classList.add('hidden');
             formScreen.classList.remove('hidden');
         }
 
-        // Mostrar chat
         function showChat() {
             formScreen.classList.add('hidden');
             chatScreen.classList.remove('hidden');
@@ -211,7 +240,6 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Crear nuevo avatar
         function createNewAvatar() {
             if (confirm('¿Crear un nuevo avatar? Se perderá el chat actual.')) {
                 currentAvatar = null;
@@ -220,23 +248,28 @@
                 avatarForm.reset();
                 imagePreview.innerHTML = '<span class="text-blue-700 text-xs text-center px-2">Subir Foto</span>';
                 delete imagePreview.dataset.src;
+                document.getElementById('speed-value').textContent = '1.0x';
+                document.getElementById('noise-value').textContent = '0.667';
                 showForm();
             }
         }
 
-        // Editar avatar
         function editAvatar() {
             document.getElementById('name-input').value = currentAvatar.name;
             document.getElementById('personality-input').value = currentAvatar.personality;
             document.getElementById('voice-select').value = currentAvatar.voice;
             document.getElementById('speed-slider').value = currentAvatar.speed;
-            document.getElementById('pitch-slider').value = currentAvatar.pitch;
+            document.getElementById('noise-slider').value = currentAvatar.noise;
+            document.getElementById('speed-value').textContent = currentAvatar.speed + 'x';
+            document.getElementById('noise-value').textContent = currentAvatar.noise;
             imagePreview.innerHTML = `<img src="${currentAvatar.photo}" class="w-full h-full object-cover">`;
             imagePreview.dataset.src = currentAvatar.photo;
             showForm();
         }
 
-        // Manejar carga de imagen
+        // ============================================
+        // MANEJO DE FORMULARIO
+        // ============================================
         photoInput.onchange = (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -249,21 +282,22 @@
             }
         };
 
-        // Limpiar formulario
         document.getElementById('clear-btn').onclick = () => {
             avatarForm.reset();
             imagePreview.innerHTML = '<span class="text-blue-700 text-xs text-center px-2">Subir Foto</span>';
             delete imagePreview.dataset.src;
+            document.getElementById('speed-value').textContent = '1.0x';
+            document.getElementById('noise-value').textContent = '0.667';
         };
 
-        // Probar audio
-        document.getElementById('test-audio-btn').onclick = () => {
+        document.getElementById('test-audio-btn').onclick = async () => {
             const voice = document.getElementById('voice-select').value;
-            const speed = document.getElementById('speed-slider').value;
-            speakText("Hola, esta es una prueba de voz.", voice, speed);
+            const speed = parseFloat(document.getElementById('speed-slider').value);
+            const noise = parseFloat(document.getElementById('noise-slider').value);
+            
+            await playPiperTTS("Hola, esta es una prueba de mi voz. ¿Cómo sueno?", voice, speed, noise);
         };
 
-        // Guardar avatar
         avatarForm.onsubmit = (e) => {
             e.preventDefault();
             
@@ -282,14 +316,16 @@
                 photo,
                 voice: document.getElementById('voice-select').value,
                 speed: document.getElementById('speed-slider').value,
-                pitch: document.getElementById('pitch-slider').value
+                noise: document.getElementById('noise-slider').value
             };
             
             saveData();
             showChat();
         };
 
-        // Enviar mensaje
+        // ============================================
+        // CHAT Y MENSAJERÍA
+        // ============================================
         document.getElementById('send-btn').onclick = sendMessage;
         chatInput.onkeypress = (e) => {
             if (e.key === 'Enter') sendMessage();
@@ -304,33 +340,28 @@
             chatInput.value = '';
             saveData();
 
-            try {
-                const systemPrompt = `Eres ${currentAvatar.name}. Carácter: ${currentAvatar.personality}. IMPORTANTE: Responde siempre con lógica, coherencia y sentido común. Sé muy breve (máximo 2 frases).`;
-                
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: userMessage }] }],
-                        systemInstruction: { parts: [{ text: systemPrompt }] }
-                    })
-                });
-                
-                const data = await response.json();
-                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No entiendo.";
-                
-                addMessageToUI(aiText, 'ai');
-                chatHistory.push({ role: 'ai', text: aiText });
-                saveData();
-                
-                speakText(aiText, currentAvatar.voice, currentAvatar.speed);
-            } catch (error) {
-                console.error('Error:', error);
-                addMessageToUI("Error de conexión. Intenta de nuevo.", 'ai');
+            // Intentar con Gemini primero
+            let aiResponse = await getGeminiResponse(userMessage);
+            
+            // Si Gemini falla, usar Gemma como respaldo
+            if (!aiResponse) {
+                console.log('⚠️ Gemini falló, usando Gemma como respaldo...');
+                aiResponse = await getGemmaResponse(userMessage);
             }
+            
+            // Si ambos fallan, mensaje de error
+            if (!aiResponse) {
+                aiResponse = "Lo siento, tengo problemas de conexión. Intenta de nuevo.";
+            }
+            
+            addMessageToUI(aiResponse, 'ai');
+            chatHistory.push({ role: 'ai', text: aiResponse });
+            saveData();
+            
+            // Generar audio con Piper TTS
+            await playPiperTTS(aiResponse, currentAvatar.voice, currentAvatar.speed, currentAvatar.noise);
         }
 
-        // Agregar mensaje a la UI
         function addMessageToUI(text, role) {
             const messageDiv = document.createElement('div');
             messageDiv.className = role === 'ai' 
@@ -341,80 +372,108 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Sintetizar voz
-        async function speakText(text, voice, speed) {
+        // ============================================
+        // INTEGRACIÓN CON GEMINI (IA PRINCIPAL)
+        // ============================================
+        async function getGeminiResponse(userMessage) {
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
+                const systemPrompt = `Eres ${currentAvatar.name}. Carácter: ${currentAvatar.personality}. IMPORTANTE: Responde siempre con lógica, coherencia y sentido común. Sé muy breve (máximo 2 frases).`;
+                
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text }] }],
-                        generationConfig: {
-                            responseModalities: ["AUDIO"],
-                            speechConfig: {
-                                voiceConfig: {
-                                    prebuiltVoiceConfig: { voiceName: voice }
-                                }
-                            }
-                        }
+                        contents: [{ parts: [{ text: userMessage }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
                     })
                 });
                 
-                const data = await response.json();
-                const audioData = data.candidates[0].content.parts[0].inlineData.data;
-                const mimeType = data.candidates[0].content.parts[0].inlineData.mimeType;
-                const sampleRate = parseInt(mimeType.split('rate=')[1]) || 24000;
+                if (!response.ok) throw new Error('Gemini API error');
                 
-                playAudioData(audioData, sampleRate);
+                const data = await response.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
             } catch (error) {
-                console.error('Error al sintetizar voz:', error);
+                console.error('❌ Error con Gemini:', error);
+                return null;
             }
         }
 
-        // Reproducir audio
-        function playAudioData(base64Data, sampleRate) {
-            const binaryString = atob(base64Data);
-            const pcmData = new Int16Array(binaryString.length / 2);
-            
-            for (let i = 0; i < binaryString.length; i += 2) {
-                pcmData[i / 2] = (binaryString.charCodeAt(i + 1) << 8) | binaryString.charCodeAt(i);
+        // ============================================
+        // INTEGRACIÓN CON GEMMA (IA DE RESPALDO)
+        // ============================================
+        async function getGemmaResponse(userMessage) {
+            try {
+                const systemContext = `Eres ${currentAvatar.name}. ${currentAvatar.personality} Responde en máximo 2 frases.`;
+                const fullMessage = `${systemContext}\n\nUsuario: ${userMessage}`;
+                
+                const response = await fetch(`${GEMMA_AI_URL}?mensaje=${encodeURIComponent(fullMessage)}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (!response.ok) throw new Error('Gemma API error');
+                
+                const data = await response.json();
+                return data.respuesta || null;
+            } catch (error) {
+                console.error('❌ Error con Gemma:', error);
+                return null;
             }
-            
-            const wavHeader = createWavHeader(pcmData.length * 2, sampleRate);
-            const audioBlob = new Blob([wavHeader, pcmData], { type: 'audio/wav' });
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const audio = new Audio(audioUrl);
-            
-            audio.play();
-            audio.onended = () => URL.revokeObjectURL(audioUrl);
         }
 
-        // Crear encabezado WAV
-        function createWavHeader(dataLength, sampleRate) {
-            const buffer = new ArrayBuffer(44);
-            const view = new DataView(buffer);
-            
-            const writeString = (offset, string) => {
-                for (let i = 0; i < string.length; i++) {
-                    view.setUint8(offset + i, string.charCodeAt(i));
+        // ============================================
+        // INTEGRACIÓN CON PIPER TTS
+        // ============================================
+        async function playPiperTTS(text, model, speed, noise) {
+            try {
+                console.log('🎤 Generando audio con Piper TTS...');
+                
+                const response = await fetch(PIPER_TTS_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: text,
+                        model: model,
+                        speaker_id: 0,
+                        length_scale: speed,
+                        noise_scale: noise,
+                        noise_w: 0.8,
+                        sentence_silence: 0.2
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error('❌ Error en Piper TTS');
+                    return;
                 }
-            };
+                
+                const data = await response.json();
+                
+                // Convertir base64 a audio y reproducir
+                const audioBlob = base64ToBlob(data.audio, 'audio/wav');
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audio = new Audio(audioUrl);
+                
+                audio.play();
+                audio.onended = () => URL.revokeObjectURL(audioUrl);
+                
+                console.log('✅ Audio reproducido correctamente');
+            } catch (error) {
+                console.error('❌ Error al reproducir audio:', error);
+            }
+        }
+
+        // Convertir base64 a Blob
+        function base64ToBlob(base64, mimeType) {
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
             
-            writeString(0, 'RIFF');
-            view.setUint32(4, 36 + dataLength, true);
-            writeString(8, 'WAVE');
-            writeString(12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true);
-            view.setUint16(22, 1, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, sampleRate * 2, true);
-            view.setUint16(32, 2, true);
-            view.setUint16(34, 16, true);
-            writeString(36, 'data');
-            view.setUint32(40, dataLength, true);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
             
-            return buffer;
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mimeType });
         }
     </script>
 </body>
