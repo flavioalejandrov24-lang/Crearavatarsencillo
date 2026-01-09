@@ -82,7 +82,7 @@
     <div id="app" class="w-full max-w-lg h-[92vh] flex flex-col relative z-10 px-4">
         
         <!-- Pantalla de Formulario -->
-        <div id="form-screen" class="glass-card p-6 space-y-6 overflow-y-auto h-full hidden">
+        <div id="form-screen" class="glass-card p-6 space-y-6 overflow-y-auto h-full">
             <h1 class="text-3xl font-bold neon-yellow text-center">Configura tu Avatar</h1>
             
             <form id="avatar-form" class="space-y-4">
@@ -95,12 +95,12 @@
 
                 <div>
                     <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Nombre</label>
-                    <input type="text" id="name-input" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white blue-glow">
+                    <input type="text" id="name-input" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white blue-glow" placeholder="Ej: Luna">
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Personalidad</label>
-                    <textarea id="personality-input" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white h-20 resize-none blue-glow"></textarea>
+                    <textarea id="personality-input" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white h-20 resize-none blue-glow" placeholder="Ej: Eres amigable, divertida y siempre positiva"></textarea>
                 </div>
 
                 <div>
@@ -143,7 +143,7 @@
         </div>
 
         <!-- Pantalla de Chat -->
-        <div id="chat-screen" class="glass-card flex-col h-full overflow-hidden flex">
+        <div id="chat-screen" class="glass-card flex-col h-full overflow-hidden hidden">
             <!-- Header -->
             <div class="p-4 border-b border-blue-900 flex items-center justify-between bg-black/60 z-10">
                 <div class="flex items-center">
@@ -182,7 +182,7 @@
         const DEEPSEEK_API_KEY = "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";
         const DEEPSEEK_URL = "https://openrouter.ai/api/v1/chat/completions";
         const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
-        const MAX_TOKENS = 200; // Aproximadamente 100-150 caracteres en español
+        const MAX_TOKENS = 200;
         
         const STORAGE_KEY = "avatar_companion_data";
         let currentAvatar = null;
@@ -219,9 +219,15 @@
         function loadData() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
-                const data = JSON.parse(saved);
-                currentAvatar = data.avatar;
-                chatHistory = data.history || [];
+                try {
+                    const data = JSON.parse(saved);
+                    currentAvatar = data.avatar;
+                    chatHistory = data.history || [];
+                } catch (e) {
+                    console.error('Error al cargar datos:', e);
+                    currentAvatar = null;
+                    chatHistory = [];
+                }
             }
         }
 
@@ -237,6 +243,7 @@
         // ============================================
         function showForm() {
             chatScreen.classList.add('hidden');
+            chatScreen.classList.remove('flex');
             formScreen.classList.remove('hidden');
         }
 
@@ -346,13 +353,11 @@
             const userMessage = chatInput.value.trim();
             if (!userMessage) return;
             
-            // Agregar mensaje del usuario
             addMessageToUI(userMessage, 'user');
             chatHistory.push({ role: 'user', text: userMessage });
             chatInput.value = '';
             saveData();
 
-            // Mostrar indicador de escritura
             const typingDiv = document.createElement('div');
             typingDiv.className = 'typing-indicator';
             typingDiv.id = 'typing-indicator';
@@ -360,10 +365,8 @@
             chatMessages.appendChild(typingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
-            // Obtener respuesta de DeepSeek
             const aiResponse = await getDeepSeekResponse(userMessage);
             
-            // Remover indicador de escritura
             document.getElementById('typing-indicator')?.remove();
             
             if (aiResponse) {
@@ -371,7 +374,6 @@
                 chatHistory.push({ role: 'ai', text: aiResponse });
                 saveData();
                 
-                // Reproducir audio (sin bloquear la UI)
                 playPiperTTS(aiResponse, currentAvatar.voice, currentAvatar.speed, currentAvatar.noise);
             } else {
                 addMessageToUI("Lo siento, tengo problemas de conexión. Intenta de nuevo.", 'ai');
@@ -393,7 +395,6 @@
         // ============================================
         async function getDeepSeekResponse(userMessage) {
             try {
-                // Historial reciente (últimos 3 intercambios = 6 mensajes)
                 const recentHistory = chatHistory.slice(-6).map(msg => ({
                     role: msg.role === 'ai' ? 'assistant' : 'user',
                     content: msg.text
@@ -440,7 +441,6 @@ REGLAS ESTRICTAS:
                 const data = await response.json();
                 let aiText = data.choices[0].message.content.trim();
                 
-                // Limpieza adicional por si acaso
                 aiText = aiText.replace(/\*/g, '');
                 aiText = aiText.replace(/[😀-🙏]/g, '');
                 aiText = aiText.replace(/jaja|jeje|jiji|haha|jajaja/gi, '');
@@ -480,7 +480,6 @@ REGLAS ESTRICTAS:
                 
                 const data = await response.json();
                 
-                // Convertir base64 a audio y reproducir
                 const audioBlob = base64ToBlob(data.audio, 'audio/wav');
                 const audioUrl = URL.createObjectURL(audioBlob);
                 const audio = new Audio(audioUrl);
