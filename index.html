@@ -169,8 +169,13 @@
         // ============================================
         // CONFIGURACIÓN DE SERVIDORES
         // ============================================
-        const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
-        const GEMMA_AI_URL = "https://alejandrott24-mi-gemma-servidor.hf.space/preguntar";
+const DEEPSEEK_API_KEY = "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";
+const DEEPSEEK_URL = "https://openrouter.ai/api/v1/chat/completions";
+const GEMMA_AI_URL = "https://alejandrott24-mi-gemma-servidor.hf.space/preguntar";
+const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
+
+// Ajustes de ahorro de tokens
+const MAX_TOKENS = 150; // Limita la longitud de la respuesta para ahorrar créditos
         
         const STORAGE_KEY = "avatar_companion_data";
         let currentAvatar = null;
@@ -329,31 +334,37 @@
         chatInput.onkeypress = (e) => {
             if (e.key === 'Enter') sendMessage();
         };
+        
+async function sendMessage() {
+    const userMessage = chatInput.value.trim();
+    if (!userMessage) return;
+    
+    addMessageToUI(userMessage, 'user');
+    chatHistory.push({ role: 'user', text: userMessage });
+    chatInput.value = '';
+    saveData();
 
-        async function sendMessage() {
-            const userMessage = chatInput.value.trim();
-            if (!userMessage) return;
-            
-            addMessageToUI(userMessage, 'user');
-            chatHistory.push({ role: 'user', text: userMessage });
-            chatInput.value = '';
-            saveData();
-
-            // Usar solo Gemma
-            let aiResponse = await getGemmaResponse(userMessage);
-            
-            // Si falla, mensaje de error
-            if (!aiResponse) {
-                aiResponse = "Lo siento, tengo problemas de conexión. Intenta de nuevo.";
-            }
-            
-            addMessageToUI(aiResponse, 'ai');
-            chatHistory.push({ role: 'ai', text: aiResponse });
-            saveData();
-            
-            // Generar audio con Piper TTS
-            await playPiperTTS(aiResponse, currentAvatar.voice, currentAvatar.speed, currentAvatar.noise);
-        }
+    // 1. Intentar con DeepSeek primero
+    let aiResponse = await getDeepSeekResponse(userMessage);
+    
+    // 2. Si DeepSeek falla, intentar con Gemma (Emergencia)
+    if (!aiResponse) {
+        console.log("🔄 Usando Gemma como respaldo...");
+        aiResponse = await getGemmaResponse(userMessage);
+    }
+    
+    // 3. Si ambos fallan, mostrar error
+    if (!aiResponse) {
+        aiResponse = "Lo siento, tengo problemas de conexión con mis servidores. Intenta de nuevo.";
+    }
+    
+    addMessageToUI(aiResponse, 'ai');
+    chatHistory.push({ role: 'ai', text: aiResponse });
+    saveData();
+    
+    // Generar audio con Piper TTS
+    await playPiperTTS(aiResponse, currentAvatar.voice, currentAvatar.speed, currentAvatar.noise);
+}
 
         function addMessageToUI(text, role) {
             const messageDiv = document.createElement('div');
@@ -365,6 +376,48 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
+
+        // ============================================
+// INTEGRACIÓN CON DEEPSEEK (OPCIÓN PRINCIPAL)
+// ============================================
+async function getDeepSeekResponse(userMessage) {
+    try {
+        // Solo enviamos los últimos 4 mensajes del historial para ahorrar tokens
+        const recentHistory = chatHistory.slice(-4).map(msg => ({
+            role: msg.role === 'ai' ? 'assistant' : 'user',
+            content: msg.text
+        }));
+
+        const response = await fetch(DEEPSEEK_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: "deepseek/deepseek-chat", // DeepSeek V3
+                messages: [
+                    { 
+                        role: "system", 
+                        content: `Eres ${currentAvatar.name}. ${currentAvatar.personality}. Responde corto, natural y sin usar markdown.` 
+                    },
+                    ...recentHistory,
+                    { role: "user", content: userMessage }
+                ],
+                max_tokens: MAX_TOKENS, // Control de gasto
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) throw new Error('DeepSeek Error');
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (error) {
+        console.error('❌ Error con DeepSeek, intentando Gemma...', error);
+        return null; // Retorna null para que el sistema sepa que debe usar la emergencia
+    }
+}
         // ============================================
         // INTEGRACIÓN CON GEMMA (IA ÚNICA)
         // ============================================
