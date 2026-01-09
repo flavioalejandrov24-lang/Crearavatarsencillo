@@ -60,6 +60,19 @@
             border-radius: 1.2rem 1.2rem 0.2rem 1.2rem;
             color: white;
         }
+        .typing-indicator {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.2rem;
+            padding: 0.75rem 1rem;
+            max-width: 85%;
+            align-self: flex-start;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 10px; }
     </style>
@@ -115,7 +128,7 @@
 
                 <div class="space-y-3 pt-4">
                     <button type="button" id="test-audio-btn" class="w-full p-3 rounded-xl font-semibold btn-test transition">
-                        🎤 Prueba de Voz
+                        Prueba de Voz
                     </button>
                     <div class="grid grid-cols-2 gap-3">
                         <button type="button" id="clear-btn" class="p-3 rounded-xl font-semibold btn-clear transition">Limpiar</button>
@@ -124,7 +137,6 @@
                 </div>
             </form>
             
-            <!-- Firma -->
             <div class="text-right text-white text-sm opacity-60 pt-2">
                 Created by Angel
             </div>
@@ -134,12 +146,10 @@
         <div id="chat-screen" class="glass-card flex-col h-full overflow-hidden flex">
             <!-- Header -->
             <div class="p-4 border-b border-blue-900 flex items-center justify-between bg-black/60 z-10">
-                <!-- Avatar a la izquierda -->
                 <div class="flex items-center">
                     <img id="chat-avatar-img" src="" class="w-12 h-12 rounded-2xl border-2 border-white object-cover shadow-lg">
                 </div>
                 
-                <!-- Botones a la derecha -->
                 <div class="flex gap-2">
                     <button onclick="createNewAvatar()" class="btn-blue px-4 py-2 rounded-lg font-semibold transition text-sm">
                         Nuevo
@@ -167,15 +177,12 @@
 
     <script>
         // ============================================
-        // CONFIGURACIÓN DE SERVIDORES
+        // CONFIGURACIÓN
         // ============================================
-const DEEPSEEK_API_KEY = "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";
-const DEEPSEEK_URL = "https://openrouter.ai/api/v1/chat/completions";
-const GEMMA_AI_URL = "https://alejandrott24-mi-gemma-servidor.hf.space/preguntar";
-const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
-
-// Ajustes de ahorro de tokens
-const MAX_TOKENS = 150; // Limita la longitud de la respuesta para ahorrar créditos
+        const DEEPSEEK_API_KEY = "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";
+        const DEEPSEEK_URL = "https://openrouter.ai/api/v1/chat/completions";
+        const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
+        const MAX_TOKENS = 200; // Aproximadamente 100-150 caracteres en español
         
         const STORAGE_KEY = "avatar_companion_data";
         let currentAvatar = null;
@@ -189,7 +196,7 @@ const MAX_TOKENS = 150; // Limita la longitud de la respuesta para ahorrar créd
         const photoInput = document.getElementById('photo-input');
         const imagePreview = document.getElementById('image-preview');
 
-        // Actualizar valores de sliders en tiempo real
+        // Actualizar valores de sliders
         document.getElementById('speed-slider').oninput = (e) => {
             document.getElementById('speed-value').textContent = e.target.value + 'x';
         };
@@ -335,36 +342,41 @@ const MAX_TOKENS = 150; // Limita la longitud de la respuesta para ahorrar créd
             if (e.key === 'Enter') sendMessage();
         };
         
-async function sendMessage() {
-    const userMessage = chatInput.value.trim();
-    if (!userMessage) return;
-    
-    addMessageToUI(userMessage, 'user');
-    chatHistory.push({ role: 'user', text: userMessage });
-    chatInput.value = '';
-    saveData();
+        async function sendMessage() {
+            const userMessage = chatInput.value.trim();
+            if (!userMessage) return;
+            
+            // Agregar mensaje del usuario
+            addMessageToUI(userMessage, 'user');
+            chatHistory.push({ role: 'user', text: userMessage });
+            chatInput.value = '';
+            saveData();
 
-    // 1. Intentar con DeepSeek primero
-    let aiResponse = await getDeepSeekResponse(userMessage);
-    
-    // 2. Si DeepSeek falla, intentar con Gemma (Emergencia)
-    if (!aiResponse) {
-        console.log("🔄 Usando Gemma como respaldo...");
-        aiResponse = await getGemmaResponse(userMessage);
-    }
-    
-    // 3. Si ambos fallan, mostrar error
-    if (!aiResponse) {
-        aiResponse = "Lo siento, tengo problemas de conexión con mis servidores. Intenta de nuevo.";
-    }
-    
-    addMessageToUI(aiResponse, 'ai');
-    chatHistory.push({ role: 'ai', text: aiResponse });
-    saveData();
-    
-    // Generar audio con Piper TTS
-    await playPiperTTS(aiResponse, currentAvatar.voice, currentAvatar.speed, currentAvatar.noise);
-}
+            // Mostrar indicador de escritura
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'typing-indicator';
+            typingDiv.id = 'typing-indicator';
+            typingDiv.textContent = 'Escribiendo...';
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Obtener respuesta de DeepSeek
+            const aiResponse = await getDeepSeekResponse(userMessage);
+            
+            // Remover indicador de escritura
+            document.getElementById('typing-indicator')?.remove();
+            
+            if (aiResponse) {
+                addMessageToUI(aiResponse, 'ai');
+                chatHistory.push({ role: 'ai', text: aiResponse });
+                saveData();
+                
+                // Reproducir audio (sin bloquear la UI)
+                playPiperTTS(aiResponse, currentAvatar.voice, currentAvatar.speed, currentAvatar.noise);
+            } else {
+                addMessageToUI("Lo siento, tengo problemas de conexión. Intenta de nuevo.", 'ai');
+            }
+        }
 
         function addMessageToUI(text, role) {
             const messageDiv = document.createElement('div');
@@ -376,67 +388,66 @@ async function sendMessage() {
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-
         // ============================================
-// INTEGRACIÓN CON DEEPSEEK (OPCIÓN PRINCIPAL)
-// ============================================
-async function getDeepSeekResponse(userMessage) {
-    try {
-        // Solo enviamos los últimos 4 mensajes del historial para ahorrar tokens
-        const recentHistory = chatHistory.slice(-4).map(msg => ({
-            role: msg.role === 'ai' ? 'assistant' : 'user',
-            content: msg.text
-        }));
-
-        const response = await fetch(DEEPSEEK_URL, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: "deepseek/deepseek-chat", // DeepSeek V3
-                messages: [
-                    { 
-                        role: "system", 
-                        content: `Eres ${currentAvatar.name}. ${currentAvatar.personality}. Responde corto, natural y sin usar markdown.` 
-                    },
-                    ...recentHistory,
-                    { role: "user", content: userMessage }
-                ],
-                max_tokens: MAX_TOKENS, // Control de gasto
-                temperature: 0.7
-            })
-        });
-
-        if (!response.ok) throw new Error('DeepSeek Error');
-
-        const data = await response.json();
-        return data.choices[0].message.content;
-    } catch (error) {
-        console.error('❌ Error con DeepSeek, intentando Gemma...', error);
-        return null; // Retorna null para que el sistema sepa que debe usar la emergencia
-    }
-}
+        // INTEGRACIÓN CON DEEPSEEK
         // ============================================
-        // INTEGRACIÓN CON GEMMA (IA ÚNICA)
-        // ============================================
-        async function getGemmaResponse(userMessage) {
+        async function getDeepSeekResponse(userMessage) {
             try {
-                const systemContext = `Eres ${currentAvatar.name}. ${currentAvatar.personality}. Responde de forma breve, coherente y natural. No uses emojis, asteriscos ni onomatopeyas.`;
-                const fullMessage = `${systemContext}\n\nUsuario: ${userMessage}`;
-                
-                const response = await fetch(`${GEMMA_AI_URL}?mensaje=${encodeURIComponent(fullMessage)}`, {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
+                // Historial reciente (últimos 3 intercambios = 6 mensajes)
+                const recentHistory = chatHistory.slice(-6).map(msg => ({
+                    role: msg.role === 'ai' ? 'assistant' : 'user',
+                    content: msg.text
+                }));
+
+                const response = await fetch(DEEPSEEK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.href,
+                        'X-Title': 'Avatar Companion'
+                    },
+                    body: JSON.stringify({
+                        model: "deepseek/deepseek-chat",
+                        messages: [
+                            { 
+                                role: "system", 
+                                content: `Eres ${currentAvatar.name}. ${currentAvatar.personality}
+
+REGLAS ESTRICTAS:
+- Responde de forma natural y conversacional
+- NO uses asteriscos (*)
+- NO uses emojis
+- NO uses onomatopeyas (jaja, mmm, uff, etc)
+- NO uses markdown ni formato especial
+- Responde en máximo 2-3 frases cortas
+- Habla como persona real, no como asistente`
+                            },
+                            ...recentHistory,
+                            { role: "user", content: userMessage }
+                        ],
+                        max_tokens: MAX_TOKENS,
+                        temperature: 0.8
+                    })
                 });
-                
-                if (!response.ok) throw new Error('Gemma API error');
-                
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('❌ Error DeepSeek:', errorData);
+                    return null;
+                }
+
                 const data = await response.json();
-                return data.respuesta || null;
+                let aiText = data.choices[0].message.content.trim();
+                
+                // Limpieza adicional por si acaso
+                aiText = aiText.replace(/\*/g, '');
+                aiText = aiText.replace(/[😀-🙏]/g, '');
+                aiText = aiText.replace(/jaja|jeje|jiji|haha|jajaja/gi, '');
+                
+                return aiText;
             } catch (error) {
-                console.error('❌ Error con Gemma:', error);
+                console.error('❌ Error con DeepSeek:', error);
                 return null;
             }
         }
@@ -446,7 +457,7 @@ async function getDeepSeekResponse(userMessage) {
         // ============================================
         async function playPiperTTS(text, model, speed, noise) {
             try {
-                console.log('🎤 Generando audio con Piper TTS...');
+                console.log('🎤 Generando audio...');
                 
                 const response = await fetch(PIPER_TTS_URL, {
                     method: 'POST',
@@ -477,13 +488,12 @@ async function getDeepSeekResponse(userMessage) {
                 audio.play();
                 audio.onended = () => URL.revokeObjectURL(audioUrl);
                 
-                console.log('✅ Audio reproducido correctamente');
+                console.log('✅ Audio reproducido');
             } catch (error) {
                 console.error('❌ Error al reproducir audio:', error);
             }
         }
 
-        // Convertir base64 a Blob
         function base64ToBlob(base64, mimeType) {
             const byteCharacters = atob(base64);
             const byteNumbers = new Array(byteCharacters.length);
