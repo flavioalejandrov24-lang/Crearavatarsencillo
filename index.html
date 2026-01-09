@@ -60,19 +60,6 @@
             border-radius: 1.2rem 1.2rem 0.2rem 1.2rem;
             color: white;
         }
-        .typing-indicator {
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1.2rem;
-            padding: 0.75rem 1rem;
-            max-width: 85%;
-            align-self: flex-start;
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 0.6; }
-            50% { opacity: 1; }
-        }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 10px; }
     </style>
@@ -82,7 +69,7 @@
     <div id="app" class="w-full max-w-lg h-[92vh] flex flex-col relative z-10 px-4">
         
         <!-- Pantalla de Formulario -->
-        <div id="form-screen" class="glass-card p-6 space-y-6 overflow-y-auto h-full">
+        <div id="form-screen" class="glass-card p-6 space-y-6 overflow-y-auto h-full hidden">
             <h1 class="text-3xl font-bold neon-yellow text-center">Configura tu Avatar</h1>
             
             <form id="avatar-form" class="space-y-4">
@@ -95,12 +82,12 @@
 
                 <div>
                     <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Nombre</label>
-                    <input type="text" id="name-input" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white blue-glow" placeholder="Ej: Luna">
+                    <input type="text" id="name-input" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white blue-glow">
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-blue-300 mb-1 uppercase">Personalidad</label>
-                    <textarea id="personality-input" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white h-20 resize-none blue-glow" placeholder="Ej: Eres amigable, divertida y siempre positiva"></textarea>
+                    <textarea id="personality-input" class="w-full bg-black/50 border border-blue-900 rounded-lg p-3 text-white h-20 resize-none blue-glow"></textarea>
                 </div>
 
                 <div>
@@ -128,7 +115,7 @@
 
                 <div class="space-y-3 pt-4">
                     <button type="button" id="test-audio-btn" class="w-full p-3 rounded-xl font-semibold btn-test transition">
-                        Prueba de Voz
+                        🎤 Prueba de Voz
                     </button>
                     <div class="grid grid-cols-2 gap-3">
                         <button type="button" id="clear-btn" class="p-3 rounded-xl font-semibold btn-clear transition">Limpiar</button>
@@ -137,19 +124,22 @@
                 </div>
             </form>
             
+            <!-- Firma -->
             <div class="text-right text-white text-sm opacity-60 pt-2">
                 Created by Angel
             </div>
         </div>
 
         <!-- Pantalla de Chat -->
-        <div id="chat-screen" class="glass-card flex-col h-full overflow-hidden hidden">
+        <div id="chat-screen" class="glass-card flex-col h-full overflow-hidden flex">
             <!-- Header -->
             <div class="p-4 border-b border-blue-900 flex items-center justify-between bg-black/60 z-10">
+                <!-- Avatar a la izquierda -->
                 <div class="flex items-center">
                     <img id="chat-avatar-img" src="" class="w-12 h-12 rounded-2xl border-2 border-white object-cover shadow-lg">
                 </div>
                 
+                <!-- Botones a la derecha -->
                 <div class="flex gap-2">
                     <button onclick="createNewAvatar()" class="btn-blue px-4 py-2 rounded-lg font-semibold transition text-sm">
                         Nuevo
@@ -177,12 +167,15 @@
 
     <script>
         // ============================================
-        // CONFIGURACIÓN
+        // CONFIGURACIÓN DE SERVIDORES
         // ============================================
-        const DEEPSEEK_API_KEY = "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";
-        const DEEPSEEK_URL = "https://openrouter.ai/api/v1/chat/completions";
-        const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
-        const MAX_TOKENS = 200;
+const DEEPSEEK_API_KEY = "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";
+const DEEPSEEK_URL = "https://openrouter.ai/api/v1/chat/completions";
+const GEMMA_AI_URL = "https://alejandrott24-mi-gemma-servidor.hf.space/preguntar";
+const PIPER_TTS_URL = "https://alejandrott24-piper-tts-server.hf.space/tts";
+
+// Ajustes de ahorro de tokens
+const MAX_TOKENS = 150; // Limita la longitud de la respuesta para ahorrar créditos
         
         const STORAGE_KEY = "avatar_companion_data";
         let currentAvatar = null;
@@ -196,7 +189,7 @@
         const photoInput = document.getElementById('photo-input');
         const imagePreview = document.getElementById('image-preview');
 
-        // Actualizar valores de sliders
+        // Actualizar valores de sliders en tiempo real
         document.getElementById('speed-slider').oninput = (e) => {
             document.getElementById('speed-value').textContent = e.target.value + 'x';
         };
@@ -219,15 +212,9 @@
         function loadData() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
-                try {
-                    const data = JSON.parse(saved);
-                    currentAvatar = data.avatar;
-                    chatHistory = data.history || [];
-                } catch (e) {
-                    console.error('Error al cargar datos:', e);
-                    currentAvatar = null;
-                    chatHistory = [];
-                }
+                const data = JSON.parse(saved);
+                currentAvatar = data.avatar;
+                chatHistory = data.history || [];
             }
         }
 
@@ -243,7 +230,6 @@
         // ============================================
         function showForm() {
             chatScreen.classList.add('hidden');
-            chatScreen.classList.remove('flex');
             formScreen.classList.remove('hidden');
         }
 
@@ -349,36 +335,36 @@
             if (e.key === 'Enter') sendMessage();
         };
         
-        async function sendMessage() {
-            const userMessage = chatInput.value.trim();
-            if (!userMessage) return;
-            
-            addMessageToUI(userMessage, 'user');
-            chatHistory.push({ role: 'user', text: userMessage });
-            chatInput.value = '';
-            saveData();
+async function sendMessage() {
+    const userMessage = chatInput.value.trim();
+    if (!userMessage) return;
+    
+    addMessageToUI(userMessage, 'user');
+    chatHistory.push({ role: 'user', text: userMessage });
+    chatInput.value = '';
+    saveData();
 
-            const typingDiv = document.createElement('div');
-            typingDiv.className = 'typing-indicator';
-            typingDiv.id = 'typing-indicator';
-            typingDiv.textContent = 'Escribiendo...';
-            chatMessages.appendChild(typingDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-
-            const aiResponse = await getDeepSeekResponse(userMessage);
-            
-            document.getElementById('typing-indicator')?.remove();
-            
-            if (aiResponse) {
-                addMessageToUI(aiResponse, 'ai');
-                chatHistory.push({ role: 'ai', text: aiResponse });
-                saveData();
-                
-                playPiperTTS(aiResponse, currentAvatar.voice, currentAvatar.speed, currentAvatar.noise);
-            } else {
-                addMessageToUI("Lo siento, tengo problemas de conexión. Intenta de nuevo.", 'ai');
-            }
-        }
+    // 1. Intentar con DeepSeek primero
+    let aiResponse = await getDeepSeekResponse(userMessage);
+    
+    // 2. Si DeepSeek falla, intentar con Gemma (Emergencia)
+    if (!aiResponse) {
+        console.log("🔄 Usando Gemma como respaldo...");
+        aiResponse = await getGemmaResponse(userMessage);
+    }
+    
+    // 3. Si ambos fallan, mostrar error
+    if (!aiResponse) {
+        aiResponse = "Lo siento, tengo problemas de conexión con mis servidores. Intenta de nuevo.";
+    }
+    
+    addMessageToUI(aiResponse, 'ai');
+    chatHistory.push({ role: 'ai', text: aiResponse });
+    saveData();
+    
+    // Generar audio con Piper TTS
+    await playPiperTTS(aiResponse, currentAvatar.voice, currentAvatar.speed, currentAvatar.noise);
+}
 
         function addMessageToUI(text, role) {
             const messageDiv = document.createElement('div');
@@ -390,63 +376,67 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // ============================================
-        // INTEGRACIÓN CON DEEPSEEK
-        // ============================================
-        async function getDeepSeekResponse(userMessage) {
-            try {
-                const recentHistory = chatHistory.slice(-6).map(msg => ({
-                    role: msg.role === 'ai' ? 'assistant' : 'user',
-                    content: msg.text
-                }));
 
-                const response = await fetch(DEEPSEEK_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-                        'Content-Type': 'application/json',
-                        'HTTP-Referer': window.location.href,
-                        'X-Title': 'Avatar Companion'
+        // ============================================
+// INTEGRACIÓN CON DEEPSEEK (OPCIÓN PRINCIPAL)
+// ============================================
+async function getDeepSeekResponse(userMessage) {
+    try {
+        // Solo enviamos los últimos 4 mensajes del historial para ahorrar tokens
+        const recentHistory = chatHistory.slice(-4).map(msg => ({
+            role: msg.role === 'ai' ? 'assistant' : 'user',
+            content: msg.text
+        }));
+
+        const response = await fetch(DEEPSEEK_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: "deepseek/deepseek-chat", // DeepSeek V3
+                messages: [
+                    { 
+                        role: "system", 
+                        content: `Eres ${currentAvatar.name}. ${currentAvatar.personality}. Responde corto, natural y sin usar markdown.` 
                     },
-                    body: JSON.stringify({
-                        model: "deepseek/deepseek-chat",
-                        messages: [
-                            { 
-                                role: "system", 
-                                content: `Eres ${currentAvatar.name}. ${currentAvatar.personality}
+                    ...recentHistory,
+                    { role: "user", content: userMessage }
+                ],
+                max_tokens: MAX_TOKENS, // Control de gasto
+                temperature: 0.7
+            })
+        });
 
-REGLAS ESTRICTAS:
-- Responde de forma natural y conversacional
-- NO uses asteriscos (*)
-- NO uses emojis
-- NO uses onomatopeyas (jaja, mmm, uff, etc)
-- NO uses markdown ni formato especial
-- Responde en máximo 2-3 frases cortas
-- Habla como persona real, no como asistente`
-                            },
-                            ...recentHistory,
-                            { role: "user", content: userMessage }
-                        ],
-                        max_tokens: MAX_TOKENS,
-                        temperature: 0.8
-                    })
+        if (!response.ok) throw new Error('DeepSeek Error');
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (error) {
+        console.error('❌ Error con DeepSeek, intentando Gemma...', error);
+        return null; // Retorna null para que el sistema sepa que debe usar la emergencia
+    }
+}
+        // ============================================
+        // INTEGRACIÓN CON GEMMA (IA ÚNICA)
+        // ============================================
+        async function getGemmaResponse(userMessage) {
+            try {
+                const systemContext = `Eres ${currentAvatar.name}. ${currentAvatar.personality}. Responde de forma breve, coherente y natural. No uses emojis, asteriscos ni onomatopeyas.`;
+                const fullMessage = `${systemContext}\n\nUsuario: ${userMessage}`;
+                
+                const response = await fetch(`${GEMMA_AI_URL}?mensaje=${encodeURIComponent(fullMessage)}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error('❌ Error DeepSeek:', errorData);
-                    return null;
-                }
-
+                
+                if (!response.ok) throw new Error('Gemma API error');
+                
                 const data = await response.json();
-                let aiText = data.choices[0].message.content.trim();
-                
-                aiText = aiText.replace(/\*/g, '');
-                aiText = aiText.replace(/jaja|jeje|jiji|haha|jajaja/gi, '');
-                
-                return aiText;
+                return data.respuesta || null;
             } catch (error) {
-                console.error('❌ Error con DeepSeek:', error);
+                console.error('❌ Error con Gemma:', error);
                 return null;
             }
         }
@@ -456,7 +446,7 @@ REGLAS ESTRICTAS:
         // ============================================
         async function playPiperTTS(text, model, speed, noise) {
             try {
-                console.log('🎤 Generando audio...');
+                console.log('🎤 Generando audio con Piper TTS...');
                 
                 const response = await fetch(PIPER_TTS_URL, {
                     method: 'POST',
@@ -479,6 +469,7 @@ REGLAS ESTRICTAS:
                 
                 const data = await response.json();
                 
+                // Convertir base64 a audio y reproducir
                 const audioBlob = base64ToBlob(data.audio, 'audio/wav');
                 const audioUrl = URL.createObjectURL(audioBlob);
                 const audio = new Audio(audioUrl);
@@ -486,12 +477,13 @@ REGLAS ESTRICTAS:
                 audio.play();
                 audio.onended = () => URL.revokeObjectURL(audioUrl);
                 
-                console.log('✅ Audio reproducido');
+                console.log('✅ Audio reproducido correctamente');
             } catch (error) {
                 console.error('❌ Error al reproducir audio:', error);
             }
         }
 
+        // Convertir base64 a Blob
         function base64ToBlob(base64, mimeType) {
             const byteCharacters = atob(base64);
             const byteNumbers = new Array(byteCharacters.length);
