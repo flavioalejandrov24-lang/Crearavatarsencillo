@@ -442,7 +442,6 @@ REGLAS ESTRICTAS:
                 let aiText = data.choices[0].message.content.trim();
                 
                 aiText = aiText.replace(/\*/g, '');
-                aiText = aiText.replace(/[😀-🙏]/g, '');
                 aiText = aiText.replace(/jaja|jeje|jiji|haha|jajaja/gi, '');
                 
                 return aiText;
